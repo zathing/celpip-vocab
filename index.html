@@ -368,7 +368,7 @@ let voice=null;
 const VKEY='celpip7-voice';
 const accent=l=>/CA/i.test(l)?'加拿大':/US/i.test(l)?'美音':/GB|UK/i.test(l)?'英音':/AU/i.test(l)?'澳洲':/IN/i.test(l)?'印度':/IE/i.test(l)?'爱尔兰':l;
 const COARSE=matchMedia('(pointer: coarse)').matches;
-let SENT_ONLINE=COARSE; try{const s=localStorage.getItem(VKEY); if(s)SENT_ONLINE=(s==='__online');}catch(e){}
+let SENT_ONLINE=true; try{const s=localStorage.getItem(VKEY); if(s)SENT_ONLINE=(s==='__online');}catch(e){}
 function pickVoice(){
   const all=('speechSynthesis' in window?speechSynthesis.getVoices():[]).filter(x=>/^en/i.test(x.lang));
   let saved=null; try{saved=localStorage.getItem(VKEY)}catch(e){}
@@ -376,7 +376,7 @@ function pickVoice(){
   const sel=$('#voiceSel'); if(!sel)return;
   const order=l=>/CA/i.test(l)?0:/US/i.test(l)?1:/GB/i.test(l)?2:3;
   sel.innerHTML=all.length?all.sort((a,b)=>order(a.lang)-order(b.lang)||a.name.localeCompare(b.name)).map(x=>`<option value="${esc(x.name)}"${x===voice?' selected':''}>${accent(x.lang)}：${esc(x.name.replace(/^(Microsoft|Google)\s*/,'').replace(/\s*-\s*English.*$/,'').replace(/\s*\((?:English\b|en-)[^)]*\)/i,'').replace('(Premium)','（高品质）').replace('(Enhanced)','（增强）'))}</option>`).join(''):'';
-  sel.insertAdjacentHTML('afterbegin',`<option value="__online"${SENT_ONLINE?' selected':''}>在线语音（联网）</option>`);
+  sel.insertAdjacentHTML('afterbegin',`<option value="__online"${SENT_ONLINE?' selected':''}>录音（联网）</option>`);
   if(SENT_ONLINE) sel.value='__online';
 }
 pickVoice(); if('speechSynthesis' in window){speechSynthesis.onvoiceschanged=pickVoice;}
@@ -387,9 +387,11 @@ const SPELL={};
 const OKSRC={}; // 记住每个词哪一个来源能播
 let toastT;
 function toast(m){const el=$('#toast'); el.textContent=m; el.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),1600);}
+const slug=w=>w.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const XS2SLUG=new Map(W.filter(w=>w.xs).map(w=>[w.xs,slug(w.w)]));
 function sentSources(t){
-  const q=encodeURIComponent(t.trim());
-  return [['有道',`https://dict.youdao.com/dictvoice?audio=${q}&type=2`],['Google',`https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en-US&q=${q}`]];
+  const q=encodeURIComponent(t.trim()), s=XS2SLUG.get(t);
+  return [...(s?[['本站录音',`audio/ex/${s}.m4a`]]:[]),['有道',`https://dict.youdao.com/dictvoice?audio=${q}&type=2`],['Google',`https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en-US&q=${q}`]];
 }
 function realSources(term){
   const w=(SPELL[term]||term).toLowerCase().trim(), out=[];
@@ -407,14 +409,15 @@ function playReal(term,sentence){
   const id=++playId; let list=src(term);
   const k=OKSRC[term]; if(k!=null) list=[list[k]].concat(list.filter((_,i)=>i!==k));
   const all=src(term);
+  const why=[];
   const next=i=>{
     if(id!==playId)return;
-    if(i>=list.length){toast(sentence?'在线语音没取到，改用系统语音':'词典发音没取到，改用电脑语音'); return ttsSay(term);}
-    let done=false; const fail=()=>{if(done)return; done=true; next(i+1);};
-    const tm=setTimeout(fail,3500);
-    player.oncanplay=null; player.onerror=()=>{clearTimeout(tm);fail();};
+    if(i>=list.length){ if(sentence) console.warn('sentence audio failed',why.join('，')); toast(sentence?'在线音频没取到（'+why.join('，')+'），改用系统语音':'词典发音没取到，改用电脑语音'); return ttsSay(term);}
+    let done=false; const fail=r=>{if(done)return; done=true; why.push(list[i][0]+'：'+r); next(i+1);};
+    const tm=setTimeout(()=>fail('超时'),sentence?8000:3500);
+    player.oncanplay=null; player.onerror=()=>{clearTimeout(tm);fail('无法加载');};
     player.src=list[i][1];
-    player.play().then(()=>{clearTimeout(tm); if(done)return; done=true; OKSRC[term]=all.findIndex(s=>s[1]===list[i][1]); toast(sentence?'例句朗读：'+list[i][0]+' 在线语音':'发音来源：'+list[i][0]+'（美音）');}).catch(()=>{clearTimeout(tm);fail();});
+    player.play().then(()=>{clearTimeout(tm); if(done)return; done=true; OKSRC[term]=all.findIndex(s=>s[1]===list[i][1]); toast(sentence?'例句朗读：'+list[i][0]:'发音来源：'+list[i][0]+'（美音）');}).catch(e=>{clearTimeout(tm);fail(e&&e.name||'播放被拒绝');});
   };
   next(0);
 }
@@ -425,6 +428,7 @@ function say(t){
   player.pause(); ttsSay(t);
 }
 document.addEventListener('change',e=>{if(e.target.id==='srcSel'){SRC=e.target.value; try{localStorage.setItem(SKEY,SRC)}catch(_){} say('confer');}});
+addEventListener('pointerdown',function unlock(){ removeEventListener('pointerdown',unlock,true); try{ if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u);} }catch(e){} },true);
 function ttsSay(t){
   if(!('speechSynthesis' in window)){toast('这个浏览器不支持系统朗读');return;}
   const ss=speechSynthesis;
@@ -692,7 +696,7 @@ try{ cfg=(await import('./firebase-config.js')).firebaseConfig; }catch(e){ cfg=n
 if(!cfg||!cfg.apiKey||/YOUR_/.test(cfg.apiKey)||location.protocol==='file:'){
   // 没有配置 Firebase，或者是直接双击打开的本地文件：只用本机进度
   if(location.protocol!=='file:'&&acct){acct.hidden=false; acct.innerHTML='<span class="dot"></span><span>未配置云同步</span>';}
-} else {
+} else (async()=>{
   const V='10.12.2';
   const {initializeApp}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
   const {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,onAuthStateChanged,signOut}=await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
@@ -783,7 +787,7 @@ if(!cfg||!cfg.apiKey||/YOUR_/.test(cfg.apiKey)||location.protocol==='file:'){
     },e=>console.warn('snapshot',e));
   });
   render();
-}
+})().catch(e=>{ console.warn('sync init',e); acct.hidden=false; acct.innerHTML='<span class="dot off"></span><span>云同步加载失败，刷新重试</span>'; });
 </script>
 
 </body>
