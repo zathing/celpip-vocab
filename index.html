@@ -40,12 +40,14 @@ button{cursor:pointer}
 
 /* header */
 header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line)}
-.bar{max-width:1180px;margin:0 auto;padding:14px 20px 0;display:flex;align-items:flex-end;gap:12px 20px;flex-wrap:wrap}
-.brand{padding-bottom:12px}
+.bar{max-width:1180px;margin:0 auto;padding:14px 20px 8px;display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
+.brand{margin-right:auto}
 .brand h1{margin:0;font:700 22px/1.1 var(--serif);letter-spacing:-.01em}
 .brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
-nav{display:flex;gap:2px;overflow-x:auto;flex:1;min-width:0}
-nav button{background:none;border:0;padding:10px 14px 12px;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+.navwrap{max-width:1180px;margin:0 auto;padding:0 20px}
+nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+nav::-webkit-scrollbar{display:none}
+nav button{background:none;border:0;padding:8px 16px 11px;font-size:15px;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
 nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--spruce);font-weight:600}
 .meter{display:none!important;padding-bottom:12px;font-size:13px;color:var(--muted);white-space:nowrap}
 .acct{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
@@ -55,7 +57,7 @@ nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--spru
 .acct .dot.ok{background:var(--ok)}.acct .dot.busy{background:var(--warn)}.acct .dot.off{background:var(--bad)}
 .acct button{white-space:nowrap;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px}
 .acct button.pri{background:var(--spruce);color:var(--paper);border-color:var(--spruce)}
-.voices{display:flex;gap:12px;padding-bottom:10px;flex-wrap:wrap}
+.voices{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .voicesel{white-space:nowrap;font-size:13px;color:var(--muted)}
 .voicesel select{max-width:150px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:13px}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);font-size:13px;padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
@@ -69,7 +71,7 @@ main{max-width:1180px;margin:0 auto;padding:20px}
 
 /* browse */
 .browse{display:grid;grid-template-columns:250px 1fr;gap:28px}
-.themes{position:sticky;top:96px;align-self:start;max-height:calc(100vh - 120px);overflow:auto;padding-right:4px}
+.themes{position:sticky;top:124px;align-self:start;max-height:calc(100vh - 144px);overflow:auto;padding-right:4px}
 .themes button{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:0;padding:7px 8px;border-radius:6px}
 .themes button:hover{background:var(--spruce-soft)}
 .themes button.on{background:var(--spruce);color:var(--paper)}
@@ -209,11 +211,12 @@ dialog::backdrop{background:rgba(10,20,18,.45)}
 
 @media (max-width:760px){
   .acct .st,.acct .who{display:none}
-  .brand{padding-bottom:4px}
-  nav{order:3;flex-basis:100%}
-  .voices{order:2;padding-bottom:4px}
-  .voices{flex-wrap:wrap;gap:8px 12px}
-  .acct{flex-basis:100%}
+  .bar{padding:12px 16px 6px}
+  .navwrap{padding:0 8px}
+  nav button{padding:8px 12px 10px}
+  .brand{order:1}
+  .acct{order:2}
+  .voices{order:3;flex-basis:100%;flex-wrap:nowrap;gap:12px}
   .acct .lg{display:none}
   .rate{flex-wrap:nowrap;width:100%}
   .rate button{min-width:0;flex:1;padding:10px 8px}
@@ -234,6 +237,12 @@ dialog::backdrop{background:rgba(10,20,18,.45)}
 <header>
   <div class="bar">
     <div class="brand"><h1>CELPIP 词汇手册</h1><p id="sub"></p></div>
+    <div class="meter">已掌握 <b id="mcount">0</b> / <span id="tcount"></span></div>
+    <div class="voices"><label class="voicesel">单词 <select id="srcSel" aria-label="单词发音来源"><option value="real">真人美音（联网）</option><option value="tts">电脑语音</option></select></label>
+    <label class="voicesel">例句 <select id="voiceSel" aria-label="例句朗读语音"></select></label></div>
+    <div class="acct" id="acct" hidden></div>
+  </div>
+  <div class="navwrap">
     <nav role="tablist" id="tabs">
       <button role="tab" data-v="browse" aria-selected="true">场景分类</button>
       <button role="tab" data-v="cards">闪卡复习</button>
@@ -242,9 +251,6 @@ dialog::backdrop{background:rgba(10,20,18,.45)}
       <button role="tab" data-v="essays">写作范文</button>
       <button role="tab" data-v="progress">进度</button>
     </nav>
-    <div class="meter">已掌握 <b id="mcount">0</b> / <span id="tcount"></span></div>
-    <div class="voices"><div class="acct" id="acct" hidden></div><label class="voicesel">单词 <select id="srcSel" aria-label="单词发音来源"><option value="real">真人美音（联网）</option><option value="tts">电脑语音</option></select></label>
-    <label class="voicesel">例句 <select id="voiceSel" aria-label="例句朗读语音"></select></label></div>
   </div>
 </header>
 
